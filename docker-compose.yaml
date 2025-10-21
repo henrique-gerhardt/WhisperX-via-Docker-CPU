@@ -1,0 +1,45 @@
+services:
+  transcribe:
+    build:
+      context: .
+    container_name: whisperx_transcribe
+    working_dir: /app
+    environment:
+      - AUDIO=${AUDIO}           # name of the audio file to transcribe (must be in /in)
+      - WHISPER_MODEL=${WHISPER_MODEL}  # Whisper model to use (tiny, base, small, medium, large)
+      - AUDIO_LANG=${AUDIO_LANG}             # optional language code (e.g., pt, en, es, fr, de)
+      - HF_TOKEN=${HF_TOKEN}     # Hugging Face token for diarization models (optional)
+      - DIARIZE=${DIARIZE}       # set to 'true' to enable diarization (default: false)
+      - MIN_SPEAKERS=${MIN_SPEAKERS} # min speakers for diarization (default: 2)
+      - MAX_SPEAKERS=${MAX_SPEAKERS} # max speakers for diarization (default: 10)
+      - BATCH_SIZE=${BATCH_SIZE}     # batch size (default: 4)
+      - COMPUTE_TYPE=${COMPUTE_TYPE} # compute type (default: int8)
+    volumes:
+      - ./in:/in        # put your audio files here (m4a/wav/mp3…)
+      - ./out:/out      # results land here
+      - whisper_cache:/.cache  # caches alignment/diarization models
+    mem_limit: "14g"
+    # Useful for PyTorch/FFmpeg temp buffers
+    shm_size: "2g"
+    command: >
+      bash -lc '
+      set -e
+      ARGS=""
+      if [ -n "${AUDIO_LANG}" ]; then ARGS="$ARGS --language ${AUDIO_LANG}"; fi
+      if [ "${DIARIZE}" = "true" ]; then
+        ARGS="$ARGS --diarize --hf_token \"${HF_TOKEN}\" --min_speakers ${MIN_SPEAKERS:-2} --max_speakers ${MAX_SPEAKERS:-10}"
+      fi
+      whisperx /in/"${AUDIO}" \
+        --model "${WHISPER_MODEL}" \
+        $ARGS \
+        --compute_type "${COMPUTE_TYPE:-int8}" \
+        --device cpu \
+        --batch_size "${BATCH_SIZE:-4}" \
+        --output_dir /out
+      '
+    tty: true
+volumes:
+  whisper_cache:
+
+
+
